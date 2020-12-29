@@ -156,7 +156,7 @@ class Bot:
 
                 self.chains.append([self.pair_data[pair]['quoteAsset'] + 'USD', pair, self.pair_data[pair]['baseAsset'] + 'USD', 'buy-buy-sell'])
 
-    def price_in_usd(amount, pair):
+    def price_in_usd(self,amount, pair):
 
         base_asset = self.pair_data[pair]['baseAsset']
 
@@ -176,19 +176,19 @@ class Bot:
 
                 amount1 = float(self.pair_data[chain[0]]['best_ask_qty'])
 
-                amount1 = price_in_usd(amount1, chain[0])
+                amount1 = self.price_in_usd(amount1, chain[0])
 
                 price2 = float(self.pair_data[chain[1]]['best_ask_price'])
 
                 amount2 = float(self.pair_data[chain[1]]['best_ask_qty'])
 
-                amount2 = price_in_usd(amount2, chain[1])
+                amount2 = self.price_in_usd(amount2, chain[1])
 
                 price3 = float(self.pair_data[chain[2]]['best_bid_price'])
 
                 amount3 = float(self.pair_data[chain[2]]['best_bid_qty'])
 
-                amount3 = price_in_usd(amount3, chain[2])
+                amount3 = self.price_in_usd(amount3, chain[2])
 
                 pricex = float(self.pair_data[self.pair_data[chain[1]]['baseAsset'] + 'USD']['best_ask_price'])
 
@@ -200,19 +200,19 @@ class Bot:
 
                 amount1 = float(self.pair_data[chain[0]]['best_ask_qty'])
 
-                amount1 = price_in_usd(amount1, chain[0])
+                amount1 = self.price_in_usd(amount1, chain[0])
 
                 price2 = float(self.pair_data[chain[1]]['best_bid_price'])
 
                 amount2 = float(self.pair_data[chain[1]]['best_bid_qty'])
 
-                amount2 = price_in_usd(amount2, chain[1])
+                amount2 = self.price_in_usd(amount2, chain[1])
 
                 price3 = float(self.pair_data[chain[2]]['best_bid_price'])
 
                 amount3 = float(self.pair_data[chain[2]]['best_bid_qty'])
 
-                amount3 = price_in_usd(amount3, chain[2])
+                amount3 = self.price_in_usd(amount3, chain[2])
 
                 pricex = float(self.pair_data[self.pair_data[chain[1]]['baseAsset'] + 'USD']['best_ask_price'])
 
