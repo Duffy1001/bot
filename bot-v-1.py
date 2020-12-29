@@ -265,8 +265,6 @@ class Bot:
 
                     self.chain_data[chain_string]['currently_profitable'] = False
 
-        print('loop time: {}'.format(time.time() - t1))
-
 
     def findOptimalStartAmount(self, chain):
 
