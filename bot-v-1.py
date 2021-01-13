@@ -87,9 +87,6 @@ class Bot:
 
                 self.wallet[asset]['locked'] = locked
 
-            print(self.wallet)
-
-            input()
 
     def build_wallet(self):
 
@@ -156,13 +153,17 @@ class Bot:
 
             for filter in filters:
 
-                if filter['filterType'] == 'PRICE_FILTER':
+                # if filter['filterType'] == 'PRICE_FILTER':
+                #
+                #     self.pair_data[symbol]['quote_min_price'] = filter['minPrice']
 
-                    self.pair_data[symbol]['quote_min_qty'] = filter['minPrice']
-
-                elif filter['filterType'] == 'LOT_SIZE':
+                if filter['filterType'] == 'LOT_SIZE':
 
                     self.pair_data[symbol]['base_min_qty'] = filter['minQty']
+
+                elif filter['filterType'] == 'PRICE_FILTER':
+
+                    self.pair_data[symbol]['quote_min_price'] = filter['minPrice']
 
 
         price_data = self.client.get_orderbook_tickers()
@@ -216,6 +217,8 @@ class Bot:
 
             tradeable = []
 
+            fee_total = 0
+
             for x in range(3):
 
                 action = actions[x]
@@ -228,7 +231,7 @@ class Bot:
 
                 base_min = float(self.pair_data[pair]['base_min_qty'])
 
-                quote_min = float(self.pair_data[pair]['quote_min_qty'])
+                quote_min = float(self.pair_data[pair]['quote_min_price'])
 
 
                 if action == 'buy':
@@ -238,6 +241,10 @@ class Bot:
                     new_start_amount = start_amount / price
 
                     qty_at_price = float(self.pair_data[pair]['best_ask_qty'])
+
+                    usd_price_of_new_amount = float(self.pair_data[base_asset+'USD']['best_bid_price'])
+
+                    fee_total += self.fee * usd_price_of_new_amount
 
 
                     if start_amount >= quote_min and new_start_amount <= qty_at_price:
@@ -255,6 +262,10 @@ class Bot:
                     new_start_amount = start_amount * price
 
                     qty_at_price = float(self.pair_data[pair]['best_bid_qty'])
+
+                    usd_price_of_new_amount = float(self.pair_data[base_asset+'USD']['best_bid_price'])
+
+                    fee_total += self.fee * usd_price_of_new_amount
 
 
                     if start_amount >= base_min and start_amount <= qty_at_price:
@@ -277,27 +288,121 @@ class Bot:
 
             net_profit = start_amount
 
-            gross_profit = net_profit * self.fee
+            gross_profit = net_profit - fee_total
 
-            if gross_profit > original_start_amount:
+            if gross_profit > original_start_amount and trade_possible:
 
-                chain_results.append('{} : {} -> {}  Tradable : {}'.format(chain,original_start_amount,start_amount, trade_possible))
+                print('{} : {} -> {}  Tradable : {} Loop Time: {}'.format(chain,original_start_amount,start_amount, trade_possible, self.loop_time))
+
+                self.execute_chain(chain)
 
         t2 = time.time()
 
-        loop_time = t2 - t1
+        self.loop_time = t2 - t1
 
-        if len(chain_results) > 0:
+        # if len(chain_results) > 0:
+        #
+        #     os.system('clear')
+        #
+        #     for chain in chain_results:
+        #
+        #         print(chain)
+        #
+        #     print(loop_time)
+        #
+        #     input('...')
 
-            os.system('clear')
+    def wait_for_order(self, t, quote_asset, base_asset):
 
-            for chain in chain_results:
+        order_filled = False
 
-                print(chain)
+        t = float(t)
 
-            print(loop_time)
+        while not order_filled:
 
-            input('...')
+            quote_last_updated = float(self.wallet[quote_asset]['last_updated'])
+
+            base_last_updated = float(self.wallet[base_asset]['last_updated'])
+
+            if quote_last_updated > t and base_last_updated > t:
+
+                order_filled = True
+
+        return True
+
+    def execute_chain(self, chain):
+
+        actions = chain[3].split('-')
+
+        initial_usd = float(self.wallet['USD']['free'])
+
+        orders = []
+
+        for x in range(3):
+
+            action = actions[x]
+
+            print(action)
+
+            pair = chain[x]
+
+            quote_asset = self.pair_data[pair]['quote_asset']
+
+            base_asset = self.pair_data[pair]['base_asset']
+
+            if action == 'buy':
+
+                start_amount = float(self.wallet[quote_asset]['free'])
+
+                quote_precision = int(self.pair_data[pair]['quote_precision'])
+
+                start_amount = '{:0.0{}f}'.format(start_amount, quote_precision)
+
+                print(start_amount)
+
+                print(self.pair_data[pair]['quote_min_price'], start_amount)
+
+                t = time.time()
+
+                order = self.client.order_market(
+                symbol=pair,
+                side=action,
+                quoteOrderQty=start_amount)
+
+                print(order)
+
+                orders.append(order)
+
+            elif action == 'sell':
+
+                start_amount = float(self.wallet[base_asset]['free'])
+
+                precision = int(self.pair_data[pair]['quote_precision'])
+
+                desired_amount = start_amount * float(self.pair_data[pair]['best_bid_price'])
+
+                desired_amount = float('{:0.0{}f}'.format(desired_amount, precision))
+
+                print(desired_amount)
+
+                t = time.time()
+
+                order = self.client.order_market(
+                symbol=pair,
+                side=action,
+                quoteOrderQty=desired_amount)
+
+                orders.append(order)
+
+            self.wait_for_order(t, quote_asset, base_asset)
+
+        print(orders)
+
+        print(float(self.wallet['USD']['free']) - initial_usd)
+
+        input()
+
+
 
 
 Bot()
