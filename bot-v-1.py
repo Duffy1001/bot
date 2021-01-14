@@ -127,43 +127,45 @@ class Bot:
 
             symbol = r['symbol']
 
-            self.pairs.append(symbol)
+            if 'XRP' not in symbol:
 
-            self.pair_data[symbol] = {}
+                self.pairs.append(symbol)
 
-            self.pair_data[symbol]['base_precision'] = r['baseAssetPrecision']
+                self.pair_data[symbol] = {}
 
-            self.pair_data[symbol]['quote_precision'] = r['quoteAssetPrecision']
+                self.pair_data[symbol]['base_precision'] = r['baseAssetPrecision']
 
-            self.pair_data[symbol]['base_asset'] = r['baseAsset']
+                self.pair_data[symbol]['quote_precision'] = r['quoteAssetPrecision']
 
-            self.pair_data[symbol]['quote_asset'] = r['quoteAsset']
+                self.pair_data[symbol]['base_asset'] = r['baseAsset']
 
-            self.pair_data[symbol]['symbol'] = symbol
+                self.pair_data[symbol]['quote_asset'] = r['quoteAsset']
 
-            filters = r['filters']
+                self.pair_data[symbol]['symbol'] = symbol
 
-            order_types = r['orderTypes']
+                filters = r['filters']
 
-            if not('MARKET' in order_types):
+                order_types = r['orderTypes']
 
-                print('MARKET ORDERS NOT AVAILABLE FOR {}'.format(symbol))
+                if not('MARKET' in order_types):
 
-                input()
+                    print('MARKET ORDERS NOT AVAILABLE FOR {}'.format(symbol))
 
-            for filter in filters:
+                    input()
 
-                # if filter['filterType'] == 'PRICE_FILTER':
-                #
-                #     self.pair_data[symbol]['quote_min_price'] = filter['minPrice']
+                for filter in filters:
 
-                if filter['filterType'] == 'LOT_SIZE':
+                    # if filter['filterType'] == 'PRICE_FILTER':
+                    #
+                    #     self.pair_data[symbol]['quote_min_price'] = filter['minPrice']
 
-                    self.pair_data[symbol]['base_min_qty'] = filter['minQty']
+                    if filter['filterType'] == 'LOT_SIZE':
 
-                elif filter['filterType'] == 'PRICE_FILTER':
+                        self.pair_data[symbol]['base_min_qty'] = filter['minQty']
 
-                    self.pair_data[symbol]['quote_min_price'] = filter['minPrice']
+                    elif filter['filterType'] == 'PRICE_FILTER':
+
+                        self.pair_data[symbol]['quote_min_price'] = filter['minPrice']
 
 
         price_data = self.client.get_orderbook_tickers()
@@ -172,21 +174,23 @@ class Bot:
 
             symbol = pair['symbol']
 
-            best_bid_price = pair['bidPrice']
+            if 'XRP' not in symbol:
 
-            best_bid_qty = pair['bidQty']
+                best_bid_price = pair['bidPrice']
 
-            best_ask_price = pair['askPrice']
+                best_bid_qty = pair['bidQty']
 
-            best_ask_qty = pair['askQty']
+                best_ask_price = pair['askPrice']
 
-            self.pair_data[symbol]['best_bid_price'] = best_bid_price
+                best_ask_qty = pair['askQty']
 
-            self.pair_data[symbol]['best_bid_qty'] = best_bid_qty
+                self.pair_data[symbol]['best_bid_price'] = best_bid_price
 
-            self.pair_data[symbol]['best_ask_price'] = best_ask_price
+                self.pair_data[symbol]['best_bid_qty'] = best_bid_qty
 
-            self.pair_data[symbol]['best_ask_qty'] = best_ask_qty
+                self.pair_data[symbol]['best_ask_price'] = best_ask_price
+
+                self.pair_data[symbol]['best_ask_qty'] = best_ask_qty
 
     def build_chains(self):
 
@@ -205,7 +209,7 @@ class Bot:
 
         t1 = time.time()
 
-        original_start_amount = float(self.wallet['USD']['free'])
+        original_start_amount = 15
 
         chain_results = []
 
@@ -242,9 +246,17 @@ class Bot:
 
                     qty_at_price = float(self.pair_data[pair]['best_ask_qty'])
 
-                    usd_price_of_new_amount = float(self.pair_data[base_asset+'USD']['best_bid_price'])
+                    if quote_asset == 'USD':
 
-                    fee_total += self.fee * usd_price_of_new_amount
+                        fee_total += self.fee * start_amount
+
+                    else:
+
+                        usd_price_of_new_start_amount = float(self.pair_data[quote_asset+'USD']['best_bid_price'])
+
+                        quote_asset_fee = start_amount * self.fee
+
+                        fee_total += quote_asset_fee * usd_price_of_new_start_amount
 
 
                     if start_amount >= quote_min and new_start_amount <= qty_at_price:
@@ -263,9 +275,17 @@ class Bot:
 
                     qty_at_price = float(self.pair_data[pair]['best_bid_qty'])
 
-                    usd_price_of_new_amount = float(self.pair_data[base_asset+'USD']['best_bid_price'])
+                    if base_asset == 'USD':
 
-                    fee_total += self.fee * usd_price_of_new_amount
+                        fee_total += self.fee * start_amount
+
+                    else:
+
+                        usd_price_of_new_start_amount = float(self.pair_data[base_asset+'USD']['best_bid_price'])
+
+                        base_asset_fee = self.fee * start_amount
+
+                        fee_total += base_asset_fee * usd_price_of_new_start_amount
 
 
                     if start_amount >= base_min and start_amount <= qty_at_price:
@@ -290,11 +310,9 @@ class Bot:
 
             gross_profit = net_profit - fee_total
 
-            if gross_profit > original_start_amount and trade_possible:
+            if (gross_profit > original_start_amount+.01) and trade_possible:
 
-                print('{} : {} -> {}  Tradable : {} Loop Time: {}'.format(chain,original_start_amount,start_amount, trade_possible, self.loop_time))
-
-                self.execute_chain(chain)
+                self.execute_chain(chain, fee_total)
 
         t2 = time.time()
 
@@ -330,19 +348,19 @@ class Bot:
 
         return True
 
-    def execute_chain(self, chain):
+    def execute_chain(self, chain, fee_total):
 
         actions = chain[3].split('-')
 
-        initial_usd = float(self.wallet['USD']['free'])
+        initial_usd = 15
+
+        initial_wallet = float(self.wallet['USD']['free'])
 
         orders = []
 
         for x in range(3):
 
             action = actions[x]
-
-            print(action)
 
             pair = chain[x]
 
@@ -358,18 +376,12 @@ class Bot:
 
                 start_amount = '{:0.0{}f}'.format(start_amount, quote_precision)
 
-                print(start_amount)
-
-                print(self.pair_data[pair]['quote_min_price'], start_amount)
-
                 t = time.time()
 
                 order = self.client.order_market(
                 symbol=pair,
                 side=action,
                 quoteOrderQty=start_amount)
-
-                print(order)
 
                 orders.append(order)
 
@@ -383,8 +395,6 @@ class Bot:
 
                 desired_amount = float('{:0.0{}f}'.format(desired_amount, precision))
 
-                print(desired_amount)
-
                 t = time.time()
 
                 order = self.client.order_market(
@@ -394,13 +404,27 @@ class Bot:
 
                 orders.append(order)
 
+            t1 = time.time()
+
             self.wait_for_order(t, quote_asset, base_asset)
 
-        print(orders)
+            t2 = time.time()
 
-        print(float(self.wallet['USD']['free']) - initial_usd)
+            print(t2-t1)
 
-        input()
+            #time.sleep(.1)
+
+        self.running_profit += float(self.wallet['USD']['free']) - (initial_wallet + fee_total)
+
+        if self.running_profit <= -2:
+
+            print('HAULTING!')
+
+            input('...')
+
+        print('{} Running Profit {}'.format(chain,self.running_profit))
+
+        time.sleep(.5)
 
 
 
