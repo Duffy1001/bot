@@ -55,9 +55,13 @@ class Bot:
 
             self.pair_data[pair]['best_bid_qty'] = msg['B']
 
+            self.pair_data[pair]['time'] = time.time()
+
         else:
 
             print('Unknown Pair!')
+
+            print(pair)
 
             input()
 
@@ -192,6 +196,8 @@ class Bot:
 
                 self.pair_data[symbol]['best_ask_qty'] = best_ask_qty
 
+                self.pair_data[symbol]['time'] = time.time()
+
     def build_chains(self):
 
         self.chains = []
@@ -209,7 +215,7 @@ class Bot:
 
         t1 = time.time()
 
-        original_start_amount = 15
+        original_start_amount = float(self.wallet['USD']['free'])
 
         chain_results = []
 
@@ -222,6 +228,8 @@ class Bot:
             tradeable = []
 
             fee_total = 0
+
+            prices = []
 
             for x in range(3):
 
@@ -241,6 +249,14 @@ class Bot:
                 if action == 'buy':
 
                     price = float(self.pair_data[pair]['best_ask_price'])
+
+                    prices.append(price)
+
+                    t1 = self.pair_data[pair]['time']
+
+                    t2 = time.time()
+
+                    print(t2-t1, pair)
 
                     new_start_amount = start_amount / price
 
@@ -270,6 +286,14 @@ class Bot:
                 elif action == 'sell':
 
                     price = float(self.pair_data[pair]['best_bid_price'])
+
+                    prices.append(price)
+
+                    t1 = self.pair_data[pair]['time']
+
+                    t2 = time.time()
+
+                    print(t2-t1, pair)
 
                     new_start_amount = start_amount * price
 
@@ -306,17 +330,21 @@ class Bot:
 
                 trade_possible = False
 
+            fee_total = self.fee * original_start_amount * 3
+
             net_profit = start_amount
 
             gross_profit = net_profit - fee_total
 
-            if (gross_profit > original_start_amount+.01) and trade_possible:
+            if (gross_profit > original_start_amount) and trade_possible:
 
-                self.execute_chain(chain, fee_total)
+                self.execute_chain(chain, fee_total, prices)
 
         t2 = time.time()
 
         self.loop_time = t2 - t1
+
+        print(self.loop_time)
 
         # if len(chain_results) > 0:
         #
@@ -348,11 +376,11 @@ class Bot:
 
         return True
 
-    def execute_chain(self, chain, fee_total):
+    def execute_chain(self, chain, fee_total, prices):
 
         actions = chain[3].split('-')
 
-        initial_usd = 15
+        initial_usd = float(self.wallet['USD']['free'])
 
         initial_wallet = float(self.wallet['USD']['free'])
 
@@ -367,6 +395,18 @@ class Bot:
             quote_asset = self.pair_data[pair]['quote_asset']
 
             base_asset = self.pair_data[pair]['base_asset']
+
+            if action == 'sell':
+
+                if float(self.pair_data[base_asset + quote_asset]['best_bid_price']) != prices[x]:
+
+                    print('Price Changed Before {}th Trade'.format(x+1))
+
+            elif action == 'buy':
+
+                if float(self.pair_data[base_asset + quote_asset]['best_ask_price']) != prices[x]:
+
+                    print('Price Changed Before {}th Trade'.format(x+1))
 
             if action == 'buy':
 
@@ -404,13 +444,23 @@ class Bot:
 
                 orders.append(order)
 
+            if action == 'sell':
+
+                if float(self.pair_data[base_asset + quote_asset]['best_bid_price']) != prices[x]:
+
+                    print('Price Changed After {}th Trade'.format(x+1))
+
+            elif action == 'buy':
+
+                if float(self.pair_data[base_asset + quote_asset]['best_ask_price']) != prices[x]:
+
+                    print('Price Changed After {}th Trade'.format(x+1))
+
             t1 = time.time()
 
             self.wait_for_order(t, quote_asset, base_asset)
 
             t2 = time.time()
-
-            print(t2-t1)
 
             #time.sleep(.1)
 
@@ -424,7 +474,11 @@ class Bot:
 
         print('{} Running Profit {}'.format(chain,self.running_profit))
 
+        self.build_pair_data()
+
         time.sleep(.5)
+
+        input('...')
 
 
 
